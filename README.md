@@ -33,20 +33,6 @@ Input data and Output Result of the project
 
 The input file contains N in the first line - the number of point in the set, K – minimal number of points to satisfy the Proximity Criteria, distance D  and TCount. T
 he next N lines contain parameters for every point in the set. One or more blanks are between the numbers in a file.
-Input.txt
-N   K   D   TCount
-id   x1    x2    a    b
-id   x1    x2    a    b
-id   x1    x2    a    b
-…
-id   x1    x2    a    b
-
-For example
-4      2      1.23     100
-0    2.2     1.2      2       45.07
-1    -1       26.2    4,4    -3.3
-2    -43.3   12.2   4.7     20
-3    11.0    -6.6    12.5   23. 
 
 Output.txt
 The output file contains information about results found for points that satisfies the Proximity Criteria. 
