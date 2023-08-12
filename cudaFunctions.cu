@@ -3,7 +3,7 @@
 #include "myProto.h"
 
 
-__global__  void checkSatisfiesProximityCriteria2(int currentIndex, double D, int N, int K, double TCount, double* x1, double* x2, double* a, double* b, int* id, int** d_results, double* d_t_results)  {
+__global__  void checkSatisfiesProximityCriteria2(int currentIndex, double D, int N, int K, double TCount, double* x1, double* x2, double* a, double* b, int* id, int* d_results, double* d_t_results)  {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
     int big_count = 0;
     double t = 2.0 * i / TCount - 1.0;
@@ -13,68 +13,69 @@ __global__  void checkSatisfiesProximityCriteria2(int currentIndex, double D, in
 
     for (int j = 0; j < N; j++) {
     	int res;
-	double x_1, x_2, y_1, y_2;
-    	int count = 0;
+        double x_1, x_2, y_1, y_2;
+        int count = 0;
 
-    	for (int h = 0; h < N; h++) {
-		if (h != currentIndex) {
-			x_1 = ((x2[currentIndex] - x1[currentIndex]) / 2.0) * sin(t * M_PI / 2.0) + (x2[currentIndex] + x1[currentIndex]) / 2.0;
-			x_2 = ((x2[h] - x1[h]) / 2.0) * sin(t * M_PI / 2.0) + (x2[h] + x1[h]) / 2.0;
-			y_1 = a[currentIndex] * x_1 + b[currentIndex];
-			y_2 = a[h] * x_2 + b[h];
-		    double distance = sqrt((x_1 - x_2)*(x_1 - x_2) + (y_1 - y_2)*(y_1 - y_2));
-		    if (distance < D) {
-		        count++;
-		    }
-		}
-	    }
+            for (int h = 0; h < N; h++) {
+                if (h != currentIndex) {
+                    x_1 = ((x2[currentIndex] - x1[currentIndex]) / 2.0) * sin(t * M_PI / 2.0) + (x2[currentIndex] + x1[currentIndex]) / 2.0;
+                    x_2 = ((x2[h] - x1[h]) / 2.0) * sin(t * M_PI / 2.0) + (x2[h] + x1[h]) / 2.0;
+                    y_1 = a[currentIndex] * x_1 + b[currentIndex];
+                    y_2 = a[h] * x_2 + b[h];
+                    double distance = sqrt((x_1 - x_2)*(x_1 - x_2) + (y_1 - y_2)*(y_1 - y_2));
+                    if (distance < D) {
+                        count++;
+                    }
+                }
+            }
 
-    	res = count >= K; // returns 1 (true) if the criteria is satisfied, otherwise 0 (false)
+            res = count >= K; // returns 1 (true) if the criteria is satisfied, otherwise 0 (false)
 
-	if (res) {
-	    satisfiedPoints[satisfiedPointsCount] = id[j];
-	    satisfiedPointsCount++;
+            if (res) {
+                satisfiedPoints[satisfiedPointsCount] = id[j];
+                satisfiedPointsCount++;
 
-	    if (satisfiedPointsCount == 3) {
-       		int current_res[3] = {satisfiedPoints[0], satisfiedPoints[1], satisfiedPoints[2]};
-            d_results[big_count] = current_res;
-            d_t_results[big_count++] = t;
-	        break; // break out of the loop as soon as we find 3 points
-	    }
-	}
-    }
+                if (satisfiedPointsCount == 3) {
+                    int index = atomicAdd(&big_count, 3);
+                    d_results[index - 3] = satisfiedPoints[0];
+                    d_results[index + 1] = satisfiedPoints[1];
+                    d_results[index + 2] = satisfiedPoints[2];
+                    d_t_results[index - 3] = t;
+
+                    break; // break out of the loop as soon as we find 3 points
+                }
+            }
+        }
 }
 
 
-int computeOnGPU(int** results, double* t_results, int currentIndex, double D, int N, int K, double TCount, double* x1, double* x2, double* a, double* b, int* id) {
+int computeOnGPU(int* results, double* t_results, int currentIndex, double D, int N, int K, double TCount, double* x1, double* x2, double* a, double* b, int* id) {
     // Error code to check return values for CUDA calls
     cudaError_t err = cudaSuccess;
     
-    int** d_results;
+    int* d_results;
     double* d_t_results;
 
-
     // Allocate memory for each pointer in the array
-    for (int i = 0; i < TCount * N ; i++) {
-        err = cudaMalloc((void**)&d_results[i], 3 * sizeof(int));
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Failed to allocate device memory for d_results[%d] - %s\n", i, cudaGetErrorString(err));
-            exit(EXIT_FAILURE);
-        }
-    
-    err = cudaMemset(d_results[i], 0, TCount * N * sizeof(int));
+    err = cudaMalloc((void**)&d_results, TCount * N * 3 * sizeof(int));
     if (err != cudaSuccess) {
-        fprintf(stderr, "Failed to set device memory to zero for d_results[%d] - %s\n", i, cudaGetErrorString(err));
+        fprintf(stderr, "Failed to allocate device memory for d_results - %s\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
     }
-}
+    
+    err = cudaMemset(d_results, 0, TCount * N * 3 * sizeof(int));
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Failed to set device memory to zero for d_results - %s\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
 
-    err = cudaMalloc((void**)&d_t_results, TCount * sizeof(int));
+
+    err = cudaMalloc((void**)&d_t_results, TCount * sizeof(double));
     if (err != cudaSuccess) {
         fprintf(stderr, "Failed to allocate device memory - %s\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
     }
-    err = cudaMemset(d_t_results, 0, TCount * sizeof(int));
+    err = cudaMemset(d_t_results, 0, TCount * sizeof(double));
     if (err != cudaSuccess) {
         fprintf(stderr, "Failed to set device memory to zero - %s\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
@@ -142,8 +143,8 @@ int computeOnGPU(int** results, double* t_results, int currentIndex, double D, i
 
     // Launch the Kernel
     int threadsPerBlock = 256;
-    int blocksPerGrid =(N + threadsPerBlock - 1) / threadsPerBlock;
-    checkSatisfiesProximityCriteria2<<<blocksPerGrid, threadsPerBlock>>>(currentIndex, D, N, K, TCount, d_x1, d_x2, d_a, d_b, id, d_results, d_t_results);
+    int blocksPerGrid = 1;
+    checkSatisfiesProximityCriteria2<<<blocksPerGrid, threadsPerBlock>>>(currentIndex, D, N, K, TCount, d_x1, d_x2, d_a, d_b, d_id, d_results, d_t_results);
     err = cudaGetLastError();
     if (err != cudaSuccess) {
         fprintf(stderr, "Failed to launch vectorAdd kernel -  %s\n", cudaGetErrorString(err));
@@ -152,14 +153,12 @@ int computeOnGPU(int** results, double* t_results, int currentIndex, double D, i
     
     cudaDeviceSynchronize();
 
-    for (int i = 0; i < N * TCount; i++) {
-        err = cudaMemcpy(results[i], d_results[i], 3 * sizeof(int), cudaMemcpyDeviceToHost);
-        if (err != cudaSuccess) {
-            fprintf(stderr, "Failed to copy data from device to host for d_results[%d] - %s\n", i, cudaGetErrorString(err));
-            exit(EXIT_FAILURE);
-        }
+    err = cudaMemcpy(results, d_results, N * TCount * 3 * sizeof(int), cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Failed to copy data from device to host for d_results - %s\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
     }
-
+    
 
     err = cudaMemcpy(t_results, d_t_results, TCount * sizeof(double), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
@@ -186,8 +185,14 @@ int computeOnGPU(int** results, double* t_results, int currentIndex, double D, i
         exit(EXIT_FAILURE);
     }
 
-    for (int i = 0; i < N * TCount; i++) {
-        cudaFree(d_results[i]);
+    if (cudaFree(d_id) != cudaSuccess) {
+        fprintf(stderr, "Failed to free device data - %s\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
+
+    if (cudaFree(d_results) != cudaSuccess) {
+        fprintf(stderr, "Failed to free device data - %s\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
     }
     
     if (cudaFree(d_t_results) != cudaSuccess) {
@@ -197,4 +202,5 @@ int computeOnGPU(int** results, double* t_results, int currentIndex, double D, i
 
     return 0;
 }
+
 
