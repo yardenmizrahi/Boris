@@ -3,7 +3,7 @@
 #include "myProto.h"
 
 
-__global__  void checkSatisfiesProximityCriteria2(int currentIndex, double D, int N, int K, double TCount, double* x1, double* x2, double* a, double* b, int* id, int* d_results[3], double* d_t_results)  {
+__global__  void checkSatisfiesProximityCriteria2(int currentIndex, double D, int N, int K, double TCount, double* x1, double* x2, double* a, double* b, int* id, int* d_results, double* d_t_results)  {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
     int big_count = 0;
     double t = 2.0 * i / TCount - 1.0;
@@ -50,8 +50,10 @@ int computeOnGPU(int* results[3], double* t_results, int currentIndex, double D,
     // Error code to check return values for CUDA calls
     cudaError_t err = cudaSuccess;
     
-    int* d_results[3];
+  //  int* d_results[3];
     double* d_t_results;
+
+    int* d_results = nullptr;  // Single pointer declaration
     
     err = cudaMalloc((void**)d_results, N * 3 * sizeof(int));
     if (err != cudaSuccess) {

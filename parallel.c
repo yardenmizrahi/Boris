@@ -186,7 +186,7 @@ int main(int argc, char* argv[]){
 	    }
 	}
 	
-	int* results[3];
+	int* results;
 	double* t_results;
 	
 	// On each process - perform a second half of its task with CUDA
@@ -196,7 +196,7 @@ int main(int argc, char* argv[]){
 	for (int i = 0; i < N; i++) {
 		if(results[i][0] != 0) { // check if there's a message at this index
 			fprintf(outputFile, "Points %d, %d, %d satisfy Proximity Criteria at t = %lf\n",
-				results[i][0], results[i][1], results[i][2], t_results[i]);
+				results[i], results[i+1], results[i+2], t_results[i+3]);
 		}
 	}
 
