@@ -159,14 +159,12 @@ int main(int argc, char* argv[]){
 	    	MPI_Recv(b, N, MPI_DOUBLE, MASTER, 0, MPI_COMM_WORLD, &status);
     	}
     	
-    	
-    //	printf("I am process %d and I know that N = %d, K = %d, D = %lf, TCount = %d\n", my_rank, N, K, D, TCount);
-    	int part = TCount / 2;
+ 
     		
-    	FILE* outputFile = fopen("output.txt", "w");
+    FILE* outputFile = fopen("output.txt", "w");
 
 #pragma omp parallel for num_threads(4) private(j)
-	for (int i = 0; i <= part; i++) {
+	for (int i = 0; i <= TCount; i++) {
 	    double t = 2.0 * i / TCount - 1.0;
 
 	    int satisfiedPointsCount = 0;
@@ -185,20 +183,7 @@ int main(int argc, char* argv[]){
 			}
 	    }
 	}
-	
-	int* results;
-	double* t_results;
-	
-	// On each process - perform a second half of its task with CUDA
-	if (computeOnGPU(results, t_results, part + 1, D, N, K, TCount, x1, x2, a, b, id) != 0)
-		MPI_Abort(MPI_COMM_WORLD, __LINE__);
-		
-	for (int i = 0; i < N - 2; i++) {
-		if(results[i] != 0) { // check if there's a message at this index
-			fprintf(outputFile, "Points %d, %d, %d satisfy Proximity Criteria at t = %lf\n",
-				results[i], results[i+1], results[i+2], t_results[i]);
-		}
-	}
+
 
 	if (ftell(outputFile) == 0) { // If nothing is written yet, no points were found.
 	    fprintf(outputFile, "No points satisfy the Proximity Criteria.\n");
@@ -211,7 +196,6 @@ int main(int argc, char* argv[]){
 		printf("MPI_Wtime measured to be: %.9f\n", time);
 		fflush(stdout);
 	}
-
 
 
 	/* shut down MPI */

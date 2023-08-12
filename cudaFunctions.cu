@@ -2,7 +2,7 @@
 #include <helper_cuda.h>
 #include "myProto.h"
 
-
+"""
 __global__  void checkSatisfiesProximityCriteria2(int currentIndex, double D, int N, int K, double TCount, double* x1, double* x2, double* a, double* b, int* id, int* d_results, double* d_t_results)  {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
     int big_count = 0;
@@ -62,24 +62,24 @@ int computeOnGPU(int* results, double* t_results, int currentIndex, double D, in
         fprintf(stderr, "Failed to allocate device memory for d_results - %s\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
     }
-    
+    /*
     err = cudaMemset(d_results, 0, TCount * N * 3 * sizeof(int));
     if (err != cudaSuccess) {
         fprintf(stderr, "Failed to set device memory to zero for d_results - %s\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
-    }
+    }*/
 
 
     err = cudaMalloc((void**)&d_t_results, TCount * sizeof(double));
     if (err != cudaSuccess) {
         fprintf(stderr, "Failed to allocate device memory - %s\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
-    }
+    }/*
     err = cudaMemset(d_t_results, 0, TCount * sizeof(double));
     if (err != cudaSuccess) {
         fprintf(stderr, "Failed to set device memory to zero - %s\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
-}
+}*/
 	
   
 
@@ -139,11 +139,10 @@ int computeOnGPU(int* results, double* t_results, int currentIndex, double D, in
         exit(EXIT_FAILURE);
     }
 
-
-
     // Launch the Kernel
     int threadsPerBlock = 256;
-    int blocksPerGrid = 1;
+    int blocksPerGrid = (TCount + threadsPerBlock - 1) / threadsPerBlock;  // Ensure covering all data
+
     checkSatisfiesProximityCriteria2<<<blocksPerGrid, threadsPerBlock>>>(currentIndex, D, N, K, TCount, d_x1, d_x2, d_a, d_b, d_id, d_results, d_t_results);
     err = cudaGetLastError();
     if (err != cudaSuccess) {
@@ -203,4 +202,4 @@ int computeOnGPU(int* results, double* t_results, int currentIndex, double D, in
     return 0;
 }
 
-
+"""
