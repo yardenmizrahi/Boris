@@ -36,7 +36,7 @@ __global__  void checkSatisfiesProximityCriteria2(int currentIndex, double D, in
 	    satisfiedPointsCount++;
 
 	    if (satisfiedPointsCount == 3) {
-       		int current_res[3] = {satisfiedPoints[0], satisfiedPoints[1], satisfiedPoints[2]};
+       		int current_res = {satisfiedPoints[0], satisfiedPoints[1], satisfiedPoints[2]};
             d_results[big_count] = current_res;
             d_t_results[big_count++] = t;
 	        break; // break out of the loop as soon as we find 3 points
@@ -50,28 +50,31 @@ int computeOnGPU(int* results[3], double* t_results, int currentIndex, double D,
     // Error code to check return values for CUDA calls
     cudaError_t err = cudaSuccess;
     
-  //  int* d_results[3];
+    int* d_results[3];
     double* d_t_results;
 
-    int* d_results = nullptr;  // Single pointer declaration
-    
-    err = cudaMalloc((void**)d_results, N * 3 * sizeof(int));
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Failed to allocate device memory - %s\n", cudaGetErrorString(err));
-        exit(EXIT_FAILURE);
-    }
-    err = cudaMemset(d_results, 0, N * 3 * sizeof(int));
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Failed to set device memory to zero - %s\n", cudaGetErrorString(err));
-        exit(EXIT_FAILURE);
-    }
 
-    err = cudaMalloc((void**)&d_t_results, N * sizeof(int));
+    // Allocate memory for each pointer in the array
+    for (int i = 0; i < 3; i++) {
+        err = cudaMalloc((void**)&d_results[i], TCount * N * sizeof(int));
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Failed to allocate device memory for d_results[%d] - %s\n", i, cudaGetErrorString(err));
+            exit(EXIT_FAILURE);
+        }
+    
+    err = cudaMemset(d_results[i], 0, TCount * N * sizeof(int));
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Failed to set device memory to zero for d_results[%d] - %s\n", i, cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
+}
+
+    err = cudaMalloc((void**)&d_t_results, TCount * sizeof(int));
     if (err != cudaSuccess) {
         fprintf(stderr, "Failed to allocate device memory - %s\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
     }
-    err = cudaMemset(d_t_results, 0, N * sizeof(int));
+    err = cudaMemset(d_t_results, 0, TCount * sizeof(int));
     if (err != cudaSuccess) {
         fprintf(stderr, "Failed to set device memory to zero - %s\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
@@ -148,13 +151,13 @@ int computeOnGPU(int* results[3], double* t_results, int currentIndex, double D,
     }
     
     cudaDeviceSynchronize();
-    err = cudaMemcpy(results, d_results, N * 4 * sizeof(int), cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(results, d_results, TCount * N * sizeof(int), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Failed to copy result array from device to host -%s\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
     }
 
-    err = cudaMemcpy(t_results, d_t_results, N * sizeof(double), cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(t_results, d_t_results, TCount * sizeof(double), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Failed to copy result array from device to host -%s\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
@@ -177,6 +180,10 @@ int computeOnGPU(int* results[3], double* t_results, int currentIndex, double D,
     if (cudaFree(d_b) != cudaSuccess) {
         fprintf(stderr, "Failed to free device data - %s\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < 3; i++) {
+        cudaFree(d_results[i]);
     }
     
     if (cudaFree(d_t_results) != cudaSuccess) {

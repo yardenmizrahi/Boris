@@ -194,7 +194,7 @@ int main(int argc, char* argv[]){
 		MPI_Abort(MPI_COMM_WORLD, __LINE__);
 		
 	for (int i = 0; i < N; i++) {
-		if(results[i][0] != 0) { // check if there's a message at this index
+		if(results[i] != 0) { // check if there's a message at this index
 			fprintf(outputFile, "Points %d, %d, %d satisfy Proximity Criteria at t = %lf\n",
 				results[i], results[i+1], results[i+2], t_results[i+3]);
 		}
