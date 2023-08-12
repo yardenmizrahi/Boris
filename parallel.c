@@ -140,7 +140,7 @@ int main(int argc, char* argv[]){
 	    	fclose(file);
 
 	}
-	if(my_rank == 1) {
+	if(my_rank != MASTER) {
 		MPI_Recv(&N, 1, MPI_INT, MASTER, 0, MPI_COMM_WORLD, &status);
 		MPI_Recv(&K, 1, MPI_INT, MASTER, 0, MPI_COMM_WORLD, &status);
 		MPI_Recv(&D, 1, MPI_DOUBLE, MASTER, 0, MPI_COMM_WORLD, &status);
@@ -173,20 +173,20 @@ int main(int argc, char* argv[]){
 	    int satisfiedPoints[3]; // To store the IDs of points that satisfy the proximity criteria.
 	
 	    for (int j = 0; j < N; j++) {
-		if (satisfiesProximityCriteria(j, t, D, N, x1, x2, a, b, K)) {
-		    satisfiedPoints[satisfiedPointsCount] = id[j];
-		    satisfiedPointsCount++;
+			if (satisfiesProximityCriteria(j, t, D, N, x1, x2, a, b, K)) {
+				satisfiedPoints[satisfiedPointsCount] = id[j];
+				satisfiedPointsCount++;
 
-		    if (satisfiedPointsCount == 3) {
-		        fprintf(outputFile, "Points %d, %d, %d satisfy Proximity Criteria at t = %lf\n",
-		                satisfiedPoints[0], satisfiedPoints[1], satisfiedPoints[2], t);
-		        break; // break out of the loop as soon as we find 3 points
-		    }
-		}
+				if (satisfiedPointsCount == 3) {
+					fprintf(outputFile, "Points %d, %d, %d satisfy Proximity Criteria at t = %lf\n",
+							satisfiedPoints[0], satisfiedPoints[1], satisfiedPoints[2], t);
+					break; // break out of the loop as soon as we find 3 points
+					}
+			}
 	    }
 	}
 	
-	int* results;
+	int** results;
 	double* t_results;
 	
 	// On each process - perform a second half of its task with CUDA
@@ -196,7 +196,7 @@ int main(int argc, char* argv[]){
 	for (int i = 0; i < N; i++) {
 		if(results[i] != 0) { // check if there's a message at this index
 			fprintf(outputFile, "Points %d, %d, %d satisfy Proximity Criteria at t = %lf\n",
-				results[i], results[i+1], results[i+2], t_results[i+3]);
+				results[i][0], results[i][1], results[i][2], t_results[i]);
 		}
 	}
 

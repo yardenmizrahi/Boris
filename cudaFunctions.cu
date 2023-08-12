@@ -3,7 +3,7 @@
 #include "myProto.h"
 
 
-__global__  void checkSatisfiesProximityCriteria2(int currentIndex, double D, int N, int K, double TCount, double* x1, double* x2, double* a, double* b, int* id, int* d_results, double* d_t_results)  {
+__global__  void checkSatisfiesProximityCriteria2(int currentIndex, double D, int N, int K, double TCount, double* x1, double* x2, double* a, double* b, int* id, int** d_results, double* d_t_results)  {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
     int big_count = 0;
     double t = 2.0 * i / TCount - 1.0;
@@ -36,7 +36,7 @@ __global__  void checkSatisfiesProximityCriteria2(int currentIndex, double D, in
 	    satisfiedPointsCount++;
 
 	    if (satisfiedPointsCount == 3) {
-       		int current_res = {satisfiedPoints[0], satisfiedPoints[1], satisfiedPoints[2]};
+       		int current_res[3] = {satisfiedPoints[0], satisfiedPoints[1], satisfiedPoints[2]};
             d_results[big_count] = current_res;
             d_t_results[big_count++] = t;
 	        break; // break out of the loop as soon as we find 3 points
@@ -46,17 +46,17 @@ __global__  void checkSatisfiesProximityCriteria2(int currentIndex, double D, in
 }
 
 
-int computeOnGPU(int* results[3], double* t_results, int currentIndex, double D, int N, int K, double TCount, double* x1, double* x2, double* a, double* b, int* id) {
+int computeOnGPU(int** results, double* t_results, int currentIndex, double D, int N, int K, double TCount, double* x1, double* x2, double* a, double* b, int* id) {
     // Error code to check return values for CUDA calls
     cudaError_t err = cudaSuccess;
     
-    int* d_results[3];
+    int** d_results;
     double* d_t_results;
 
 
     // Allocate memory for each pointer in the array
-    for (int i = 0; i < 3; i++) {
-        err = cudaMalloc((void**)&d_results[i], TCount * N * sizeof(int));
+    for (int i = 0; i < TCount * N ; i++) {
+        err = cudaMalloc((void**)&d_results[i], 3 * sizeof(int));
         if (err != cudaSuccess) {
             fprintf(stderr, "Failed to allocate device memory for d_results[%d] - %s\n", i, cudaGetErrorString(err));
             exit(EXIT_FAILURE);
@@ -151,11 +151,15 @@ int computeOnGPU(int* results[3], double* t_results, int currentIndex, double D,
     }
     
     cudaDeviceSynchronize();
-    err = cudaMemcpy(results, d_results, TCount * N * sizeof(int), cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Failed to copy result array from device to host -%s\n", cudaGetErrorString(err));
-        exit(EXIT_FAILURE);
+
+    for (int i = 0; i < N * TCount; i++) {
+        err = cudaMemcpy(results[i], d_results[i], 3 * sizeof(int), cudaMemcpyDeviceToHost);
+        if (err != cudaSuccess) {
+            fprintf(stderr, "Failed to copy data from device to host for d_results[%d] - %s\n", i, cudaGetErrorString(err));
+            exit(EXIT_FAILURE);
+        }
     }
+
 
     err = cudaMemcpy(t_results, d_t_results, TCount * sizeof(double), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
@@ -182,7 +186,7 @@ int computeOnGPU(int* results[3], double* t_results, int currentIndex, double D,
         exit(EXIT_FAILURE);
     }
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < N * TCount; i++) {
         cudaFree(d_results[i]);
     }
     
