@@ -2,114 +2,8 @@
 #include <helper_cuda.h>
 #include "myProto.h"
 
-__device__ void reverse(char* str, int len)
-{
-    int i = 0, j = len - 1, temp;
-    while (i < j) {
-        temp = str[i];
-        str[i] = str[j];
-        str[j] = temp;
-        i++;
-        j--;
-    }
-}
 
-__device__ int intToStr(int x, char str[], int d)
-{
-    int i = 0;
-    while (x) {
-        str[i++] = (x % 10) + '0';
-        x = x / 10;
-    }
-
-    while (i < d)
-        str[i++] = '0';
-
-    reverse(str, i);
-    str[i] = '\0';
-    return i;
-}
-
-
-__device__ void floatToStr(double n, char* res, int afterpoint)
-{
-    int ipart = (int)n;
-    double fpart = n - (double)ipart;
-    int i = intToStr(ipart, res, 0);
-    if (afterpoint != 0) {
-        res[i] = '.';
-        fpart = fpart * pow(10, afterpoint);
-        intToStr((int)fpart, res + i + 1, afterpoint);
-    }
-}
-
-__device__ void mySnprintf(char* s, int a, int b, int c, double t)
-{
-    char temp[50];
-    intToStr(a, temp, 0);
-    int index = 0;
-    int i = 0;
-    while(temp[i] != '\0') {
-        s[index++] = temp[i++];
-    }
-    s[index++] = ',';
-    s[index++] = ' ';
-    i = 0;
-    intToStr(b, temp, 0);
-    while(temp[i] != '\0') {
-        s[index++] = temp[i++];
-    }
-    s[index++] = ',';
-    s[index++] = ' ';
-    i = 0;
-    intToStr(c, temp, 0);
-    while(temp[i] != '\0') {
-        s[index++] = temp[i++];
-    }
-    s[index++] = ' ';
-    s[index++] = 's';
-    s[index++] = 'a';
-    s[index++] = 't';
-    s[index++] = 'i';
-    s[index++] = 's';
-    s[index++] = 'f';
-    s[index++] = 'y';
-    s[index++] = ' ';
-    s[index++] = 'P';
-    s[index++] = 'r';
-    s[index++] = 'o';
-    s[index++] = 'x';
-    s[index++] = 'i';
-    s[index++] = 'm';
-    s[index++] = 'i';
-    s[index++] = 't';
-    s[index++] = 'y';
-    s[index++] = ' ';
-    s[index++] = 'C';
-    s[index++] = 'r';
-    s[index++] = 'i';
-    s[index++] = 't';
-    s[index++] = 'e';
-    s[index++] = 'r';
-    s[index++] = 'i';
-    s[index++] = 'a';
-    s[index++] = ' ';
-    s[index++] = 'a';
-    s[index++] = 't';
-    s[index++] = ' ';
-    s[index++] = 't';
-    s[index++] = '=';
-    s[index++] = ' ';
-    floatToStr(t, temp, 2);
-    i = 0;
-    while(temp[i] != '\0') {
-        s[index++] = temp[i++];
-    }
-    s[index] = '\0';
-}
-
-
-__global__  void checkSatisfiesProximityCriteria2(int currentIndex, double D, int N, int K, double TCount, double* x1, double* x2, double* a, double* b, int* id, char* d_strings)  {
+__global__  void checkSatisfiesProximityCriteria2(int currentIndex, double D, int N, int K, double TCount, double* x1, double* x2, double* a, double* b, int* id, int* d_results[3], double* d_t_results)  {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
     int big_count = 0;
     double t = 2.0 * i / TCount - 1.0;
@@ -142,9 +36,9 @@ __global__  void checkSatisfiesProximityCriteria2(int currentIndex, double D, in
 	    satisfiedPointsCount++;
 
 	    if (satisfiedPointsCount == 3) {
-       		char* current_string = &d_strings[big_count++];
-        	mySnprintf(current_string, satisfiedPoints[0], satisfiedPoints[1], satisfiedPoints[2], t);
-
+       		int current_res[3] = {satisfiedPoints[0], satisfiedPoints[1], satisfiedPoints[2]};
+            d_results[big_count] = current_res;
+            d_t_results[big_count++] = t;
 	        break; // break out of the loop as soon as we find 3 points
 	    }
 	}
@@ -152,17 +46,34 @@ __global__  void checkSatisfiesProximityCriteria2(int currentIndex, double D, in
 }
 
 
-int computeOnGPU(char h_strings[MAX_LEN][MAX_LEN], int currentIndex, double D, int N, int K, double TCount, double* x1, double* x2, double* a, double* b, int* id) {
+int computeOnGPU(int* results[3], double* t_results, int currentIndex, double D, int N, int K, double TCount, double* x1, double* x2, double* a, double* b, int* id) {
     // Error code to check return values for CUDA calls
     cudaError_t err = cudaSuccess;
     
-    char* d_strings;
+    int* d_results[3];
+    double* d_t_results;
     
-    err = cudaMalloc(&d_strings, N * MAX_LEN * sizeof(char));
+    err = cudaMalloc((void**)d_results, N * 3 * sizeof(int));
     if (err != cudaSuccess) {
         fprintf(stderr, "Failed to allocate device memory - %s\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
     }
+    err = cudaMemset(d_results, 0, N * 3 * sizeof(int));
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Failed to set device memory to zero - %s\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
+
+    err = cudaMalloc((void**)&d_t_results, N * sizeof(int));
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Failed to allocate device memory - %s\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
+    err = cudaMemset(d_t_results, 0, N * sizeof(int));
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Failed to set device memory to zero - %s\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+}
 	
   
 
@@ -227,7 +138,7 @@ int computeOnGPU(char h_strings[MAX_LEN][MAX_LEN], int currentIndex, double D, i
     // Launch the Kernel
     int threadsPerBlock = 256;
     int blocksPerGrid =(N + threadsPerBlock - 1) / threadsPerBlock;
-    checkSatisfiesProximityCriteria2<<<blocksPerGrid, threadsPerBlock>>>(currentIndex, D, N, K, TCount, d_x1, d_x2, d_a, d_b, id, d_strings);
+    checkSatisfiesProximityCriteria2<<<blocksPerGrid, threadsPerBlock>>>(currentIndex, D, N, K, TCount, d_x1, d_x2, d_a, d_b, id, d_results, d_t_results);
     err = cudaGetLastError();
     if (err != cudaSuccess) {
         fprintf(stderr, "Failed to launch vectorAdd kernel -  %s\n", cudaGetErrorString(err));
@@ -235,7 +146,13 @@ int computeOnGPU(char h_strings[MAX_LEN][MAX_LEN], int currentIndex, double D, i
     }
     
     cudaDeviceSynchronize();
-    err = cudaMemcpy(h_strings, d_strings, MAX_LEN * MAX_LEN * sizeof(char), cudaMemcpyDeviceToHost);
+    err = cudaMemcpy(results, d_results, N * 4 * sizeof(int), cudaMemcpyDeviceToHost);
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Failed to copy result array from device to host -%s\n", cudaGetErrorString(err));
+        exit(EXIT_FAILURE);
+    }
+
+    err = cudaMemcpy(t_results, d_t_results, N * sizeof(double), cudaMemcpyDeviceToHost);
     if (err != cudaSuccess) {
         fprintf(stderr, "Failed to copy result array from device to host -%s\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
@@ -260,7 +177,7 @@ int computeOnGPU(char h_strings[MAX_LEN][MAX_LEN], int currentIndex, double D, i
         exit(EXIT_FAILURE);
     }
     
-    if (cudaFree(d_strings) != cudaSuccess) {
+    if (cudaFree(d_t_results) != cudaSuccess) {
         fprintf(stderr, "Failed to free device data - %s\n", cudaGetErrorString(err));
         exit(EXIT_FAILURE);
     }

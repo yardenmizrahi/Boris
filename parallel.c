@@ -186,17 +186,19 @@ int main(int argc, char* argv[]){
 	    }
 	}
 	
-	char results[MAX_LEN][MAX_LEN] = {0};
+	int* results[3];
+	double* t_results;
 	
 	// On each process - perform a second half of its task with CUDA
-    	if (computeOnGPU(results, part + 1, D, N, K, TCount, x1, x2, a, b, id) != 0)
-       		MPI_Abort(MPI_COMM_WORLD, __LINE__);
-       		
-       	for (int i = 0; i < N; i++) {
-    		if(results[i][0] != '\0') { // check if there's a message at this index
-        		fprintf(outputFile, "%s\n", results[i]);
-    }
-}
+	if (computeOnGPU(results, t_results, part + 1, D, N, K, TCount, x1, x2, a, b, id) != 0)
+		MPI_Abort(MPI_COMM_WORLD, __LINE__);
+		
+	for (int i = 0; i < N; i++) {
+		if(results[i][0] != 0) { // check if there's a message at this index
+			fprintf(outputFile, "Points %d, %d, %d satisfy Proximity Criteria at t = %lf\n",
+				results[i][0], results[i][1], results[i][2], t_results[i]);
+		}
+	}
 
 	if (ftell(outputFile) == 0) { // If nothing is written yet, no points were found.
 	    fprintf(outputFile, "No points satisfy the Proximity Criteria.\n");
